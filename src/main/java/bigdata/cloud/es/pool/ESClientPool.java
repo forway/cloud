@@ -1,5 +1,7 @@
 package bigdata.cloud.es.pool;
 
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
@@ -10,6 +12,8 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.InetSocketTransportAddress;
 
 import bigdata.cloud.system.CloudSystemConfig;
 /**
@@ -87,12 +91,16 @@ public class ESClientPool {
 	 * @param es_client_pool_size
 	 */
 	private static void makeClients(String es_hosts, int es_port, String es_cluster_name, int es_client_pool_size) {
+		
+		Settings settings = Settings.settingsBuilder().put("cluster.name", es_cluster_name).put("client.transport.sniff", true).build();
+		//设置多个host，如果某个host出现连接问题，其它host还可以使用
+		InetSocketTransportAddress[] addressArray = getAllAddress(es_hosts.split(","), es_port);
 		//创建容量可变的线程池
 		ExecutorService executorService = Executors.newCachedThreadPool();
 		//用于存放每个线程创建返回的状态，包括线程放回结果
 		List<Future<Client>> futures = new ArrayList<Future<Client>>();
 		for (int i = 0; i < es_client_pool_size; i++) {
-			futures.add(executorService.submit(new ESClientMakerThread(es_hosts, es_port, es_cluster_name)));
+			futures.add(executorService.submit(new ESClientMakerThread(settings, addressArray)));
 		}
 		try {
 			for (int i = 0; i < futures.size(); i++) {
@@ -105,5 +113,22 @@ public class ESClientPool {
 		}
 		executorService.shutdown();
 	}
+	
+	/**
+     * 获得所有的地址端口的netSocketTransportAddress数组
+     *
+     * @return
+     */
+    private static InetSocketTransportAddress[] getAllAddress(String[] hostArray, int es_port) {
+        InetSocketTransportAddress[] addressList = new InetSocketTransportAddress[hostArray.length];
+        try {
+        	for(int i=0; i<hostArray.length; i++){
+        		addressList[i] = new InetSocketTransportAddress(InetAddress.getByName(hostArray[i]), es_port);
+        	}
+		} catch (UnknownHostException e) {
+			e.printStackTrace();
+		}
+        return addressList;
+    }
 
 }
