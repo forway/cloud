@@ -11,12 +11,12 @@ import org.elasticsearch.common.transport.InetSocketTransportAddress;
  * @author hongliang
  *
  */
-public class ESClientMakerThread implements Callable<Client>
+public class BAK_ESClientMakerThread implements Callable<Client>
 {
 	private Settings settings;
 	private InetSocketTransportAddress[] addressArray;
 
-	public ESClientMakerThread(Settings settings, InetSocketTransportAddress[] addressArray) {
+	public BAK_ESClientMakerThread(Settings settings, InetSocketTransportAddress[] addressArray) {
 		super();
 		this.settings = settings;
 		this.addressArray = addressArray;

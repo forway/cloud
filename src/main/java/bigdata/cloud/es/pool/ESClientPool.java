@@ -2,35 +2,43 @@ package bigdata.cloud.es.pool;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
 
+import org.apache.commons.pool2.impl.GenericObjectPool;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 
 import bigdata.cloud.system.CloudSystemConfig;
-/**
- * es客户端对象池
- * @author hongliang
- *
- */
-public class ESClientPool {
+
+public class ESClientPool{
 	
-	//存放es client的队列
-	private static BlockingQueue<Client> esClientQueue = new ArrayBlockingQueue<Client>(CloudSystemConfig.es_clientPoolSize);
+	private static ESClientPoolableObjectFactory poolFactory;
+	public static GenericObjectPool<Client> pool;
 	//使用单例模式
 	private static ESClientPool esClientPool;
 
-	private ESClientPool(){
-		//初始化
-		initPool();
+	private ESClientPool() {
+		// 初始化
+		if(pool == null || pool.getBorrowedCount() == 0){
+			initPool();
+		}
+	}
+	
+	/**
+	 * 初始化资源池
+	 */
+	public static void initPool(){
+		
+		Settings esSettings = Settings.settingsBuilder().put("cluster.name", CloudSystemConfig.es_clusterName)
+				.put("client.transport.sniff", true).build();
+		//设置多个host，如果某个host出现连接问题，其它host还可以使用
+		InetSocketTransportAddress[] addressArray = getAllAddress(CloudSystemConfig.es_hosts.split(","), CloudSystemConfig.es_port);
+		
+		poolFactory = new ESClientPoolableObjectFactory(esSettings, addressArray);
+		pool = new GenericObjectPool<Client>(poolFactory);
+		pool.setMaxIdle(10);
+		pool.setMinIdle(5);
+		pool.setMaxTotal(10);
 	}
 	
 	/**
@@ -49,69 +57,27 @@ public class ESClientPool {
 	 * @return
 	 */
 	public Client getClient(){
-		return getClientFromQueue();
-	}
-	
-	/**
-	 * 初始化
-	 */
-	public static void initPool() {
-		if (esClientQueue.isEmpty()) {
-			// 初始化队列esClientQueue
-			makeClients(CloudSystemConfig.es_hosts, CloudSystemConfig.es_port, CloudSystemConfig.es_clusterName, CloudSystemConfig.es_clientPoolSize);
+		try {
+			return pool.borrowObject();
+		} catch (Exception e) {
+			e.printStackTrace();
 		}
+		return null;
 	}
 	
 	/**
-	 * 从队列中获取一个ES客户端对象
+	 * 释放连接资源
 	 * @return
 	 */
-	private static Client getClientFromQueue() {
-		synchronized (esClientQueue) {
-			if (!esClientQueue.isEmpty()) {
-				Client client = esClientQueue.poll();
-				//计算出剩余容量，如果剩余容量大于0，则往队列中加入es客户端对象
-				int space = esClientQueue.remainingCapacity() - esClientQueue.size();
-				if(space > 0){
-					makeClients(CloudSystemConfig.es_hosts, CloudSystemConfig.es_port, CloudSystemConfig.es_clusterName, space);
-				}
-				return client;
-			} else {
-				makeClients(CloudSystemConfig.es_hosts, CloudSystemConfig.es_port, CloudSystemConfig.es_clusterName, CloudSystemConfig.es_clientPoolSize);
-				return esClientQueue.poll();
-			}
-		}
+	public void release(Client c){
+		pool.returnObject(c);
 	}
-	
 	/**
-	 * 创建es客户端对象，并加入到队列ESClientQueue中
-	 * @param es_hosts
-	 * @param es_port
-	 * @param es_cluster_name
-	 * @param es_client_pool_size
+	 * 释放连接资源
+	 * @return
 	 */
-	private static void makeClients(String es_hosts, int es_port, String es_cluster_name, int es_client_pool_size) {
-		
-		Settings settings = Settings.settingsBuilder().put("cluster.name", es_cluster_name).put("client.transport.sniff", true).build();
-		//设置多个host，如果某个host出现连接问题，其它host还可以使用
-		InetSocketTransportAddress[] addressArray = getAllAddress(es_hosts.split(","), es_port);
-		//创建容量可变的线程池
-		ExecutorService executorService = Executors.newCachedThreadPool();
-		//用于存放每个线程创建返回的状态，包括线程放回结果
-		List<Future<Client>> futures = new ArrayList<Future<Client>>();
-		for (int i = 0; i < es_client_pool_size; i++) {
-			futures.add(executorService.submit(new ESClientMakerThread(settings, addressArray)));
-		}
-		try {
-			for (int i = 0; i < futures.size(); i++) {
-				esClientQueue.add(futures.get(i).get());
-			}
-		} catch (InterruptedException e) {
-			e.printStackTrace();
-		} catch (ExecutionException e) {
-			e.printStackTrace();
-		}
-		executorService.shutdown();
+	public void close(Client c){
+		pool.returnObject(c);
 	}
 	
 	/**
@@ -130,5 +96,6 @@ public class ESClientPool {
 		}
         return addressList;
     }
-
+	
+	
 }

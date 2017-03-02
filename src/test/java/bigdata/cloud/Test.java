@@ -3,17 +3,19 @@ package bigdata.cloud;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 
+import org.apache.commons.pool2.ObjectPool;
+
 public class Test {
 	
-	public static void main(String[] args) {
+	public static void main(String[] args) throws Exception {
 		
-		BlockingQueue<String> esClientQueue = new ArrayBlockingQueue<String>(0);
+		BlockingQueue<String> esClientQueue = new ArrayBlockingQueue<String>(5);
 		
-		esClientQueue = new ArrayBlockingQueue<String>(1);
-		System.out.println(esClientQueue.size());
-		//System.out.println(esClientQueue.remainingCapacity());
-		
-		
+		esClientQueue.offer("aaa");
+		esClientQueue.offer("bbb");
+		System.out.println(esClientQueue.take());
+		System.out.println(esClientQueue.take());
+		System.out.println(esClientQueue.take());
 		
 		
 	}
