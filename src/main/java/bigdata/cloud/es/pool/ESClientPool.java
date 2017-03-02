@@ -13,18 +13,17 @@ import bigdata.cloud.system.CloudSystemConfig;
 /**
  * 
  * @author hongliang
- * ES client 对象池
+ * ES client 对象池  
  *
  */
 public class ESClientPool{
 	
-	private static ESClientPoolableObjectFactory poolFactory;
 	public static GenericObjectPool<Client> pool;
 	//使用单例模式
 
 	private ESClientPool() {
 		// 初始化
-		if(pool == null || pool.getBorrowedCount() == 0){
+		if(pool == null || pool.getNumActive() == 0){
 			initPool();
 		}
 	}
@@ -55,12 +54,13 @@ public class ESClientPool{
 		//设置多个host，如果某个host出现连接问题，其它host还可以使用
 		InetSocketTransportAddress[] addressArray = getAllAddress(CloudSystemConfig.es_hosts.split(","), CloudSystemConfig.es_port);
 		
-		poolFactory = new ESClientPoolableObjectFactory(esSettings, addressArray);
+		ESClientPoolableObjectFactory poolFactory = new ESClientPoolableObjectFactory(esSettings, addressArray);
 		GenericObjectPoolConfig config = new GenericObjectPoolConfig();
 		config.setMaxTotal(10);	//最大连接数
 		config.setMaxIdle(10);	//链接池中最大空闲的连接数，默认为8.该参数一般尽量与_maxActive相同，以提高并发数
 		config.setMinIdle(5);	//连接池中最少空闲的连接数，默认为0
 		config.setMaxWaitMillis(120 * 1000);	//当连接池资源耗尽时，调用者最大阻塞的时间，超时将跑出异常。单位，毫秒数；默认为-1.表示永不超时
+		config.setSoftMinEvictableIdleTimeMillis(30 * 60 * 1000);	//连接空闲的最小时间，达到此值后空闲链接将会被移除，且保留“minIdle”个空闲连接数。默认为-1.
 		pool = new GenericObjectPool<Client>(poolFactory, config);
 	}
 	
@@ -78,13 +78,12 @@ public class ESClientPool{
 	}
 	
 	/**
-	 * 释放连接资源
+	 * 释放ES client连接资源
 	 * @return
 	 */
 	public void release(Client c){
-		pool.returnObject(c);
 		if(c != null){
-			
+			pool.returnObject(c);
 		}
 	}
 	
