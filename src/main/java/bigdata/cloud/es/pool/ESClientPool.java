@@ -4,24 +4,45 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 
 import org.apache.commons.pool2.impl.GenericObjectPool;
+import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 
 import bigdata.cloud.system.CloudSystemConfig;
-
+/**
+ * 
+ * @author hongliang
+ * ES client 对象池
+ *
+ */
 public class ESClientPool{
 	
 	private static ESClientPoolableObjectFactory poolFactory;
 	public static GenericObjectPool<Client> pool;
 	//使用单例模式
-	private static ESClientPool esClientPool;
 
 	private ESClientPool() {
 		// 初始化
 		if(pool == null || pool.getBorrowedCount() == 0){
 			initPool();
 		}
+	}
+	
+	/**
+	 * 使用静态内部类实现单例模式
+	 *
+	 */
+	private static class SingletonHolder {
+		private static ESClientPool esClientPool = new ESClientPool();  
+	}
+	
+	/**
+	 * 单例模式获取ES客户端对象池
+	 * @return
+	 */
+	public static ESClientPool getInstance(){
+		return SingletonHolder.esClientPool;
 	}
 	
 	/**
@@ -35,21 +56,12 @@ public class ESClientPool{
 		InetSocketTransportAddress[] addressArray = getAllAddress(CloudSystemConfig.es_hosts.split(","), CloudSystemConfig.es_port);
 		
 		poolFactory = new ESClientPoolableObjectFactory(esSettings, addressArray);
-		pool = new GenericObjectPool<Client>(poolFactory);
-		pool.setMaxIdle(10);
-		pool.setMinIdle(5);
-		pool.setMaxTotal(10);
-	}
-	
-	/**
-	 * 单例模式获取ES客户端对象池
-	 * @return
-	 */
-	public static ESClientPool getInstance(){
-		if(esClientPool == null){
-			esClientPool = new ESClientPool();
-		}
-		return esClientPool;
+		GenericObjectPoolConfig config = new GenericObjectPoolConfig();
+		config.setMaxTotal(10);	//最大连接数
+		config.setMaxIdle(10);	//链接池中最大空闲的连接数，默认为8.该参数一般尽量与_maxActive相同，以提高并发数
+		config.setMinIdle(5);	//连接池中最少空闲的连接数，默认为0
+		config.setMaxWaitMillis(120 * 1000);	//当连接池资源耗尽时，调用者最大阻塞的时间，超时将跑出异常。单位，毫秒数；默认为-1.表示永不超时
+		pool = new GenericObjectPool<Client>(poolFactory, config);
 	}
 	
 	/**
@@ -71,18 +83,13 @@ public class ESClientPool{
 	 */
 	public void release(Client c){
 		pool.returnObject(c);
-	}
-	/**
-	 * 释放连接资源
-	 * @return
-	 */
-	public void close(Client c){
-		pool.returnObject(c);
+		if(c != null){
+			
+		}
 	}
 	
 	/**
      * 获得所有的地址端口的netSocketTransportAddress数组
-     *
      * @return
      */
     private static InetSocketTransportAddress[] getAllAddress(String[] hostArray, int es_port) {

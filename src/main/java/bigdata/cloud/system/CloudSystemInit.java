@@ -7,7 +7,6 @@ import javax.annotation.PostConstruct;
 
 import org.apache.log4j.Logger;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
@@ -40,35 +39,43 @@ public class CloudSystemInit {
 		
 		logger.info("cloud system init finished.");
 		
-		Client client = ESClientPool.getInstance().getClient();
-    	System.out.println(((TransportClient)client).connectedNodes().size());
+		//test
+		for(int i=0; i<2500; i++){
+			
+			new Thread(new Runnable() {
+				
+				@Override
+				public void run() {
+					Client client = ESClientPool.getInstance().getClient();
 
-    	
-    	String index = "linux-syslog-2016.12.20";
-    	String type = "logs";
-    	ClusterState cs = client.admin().cluster().prepareState().setIndices(index).execute().actionGet()
-				.getState();
-		IndexMetaData imd = cs.getMetaData().index(index);
-		MappingMetaData mdd = imd.mapping(type);
-		Map<String, Object> map = null;
-		try
-		{
-			map = mdd.getSourceAsMap();
-			for(String s : map.keySet()){
-				System.out.println(s + " --- " + map.get(s));
-			}
-		} catch (IOException e)
-		{
-			e.printStackTrace();
+			    	String index = "elasticsearch-sql_test_index";  //elasticsearch-sql_test_index    linux-syslog-2016.12.20
+			    	String type = "account";   //account   logs
+			    	ClusterState cs = client.admin().cluster().prepareState().setIndices(index).execute().actionGet()
+							.getState();
+					IndexMetaData imd = cs.getMetaData().index(index);
+					MappingMetaData mdd = imd.mapping(type);
+					Map<String, Object> map = null;
+					try
+					{
+						map = mdd.getSourceAsMap();
+						for(String s : map.keySet()){
+							System.out.println(s + " --- " + map.get(s));
+						}
+					} catch (IOException e)
+					{
+						e.printStackTrace();
+					}
+
+					ESClientPool.getInstance().release(client);
+					
+				}
+			}).start();
+			
 		}
 		
-		System.out.println("aa  -----  " + ESClientPool.pool.getBorrowedCount());
-		System.out.println("aa  -----  " + ESClientPool.pool.getReturnedCount());
-		ESClientPool.getInstance().release(client);
-		System.out.println("bb  -----  " + ESClientPool.pool.getBorrowedCount());
-		System.out.println("bb  -----  " + ESClientPool.pool.getReturnedCount());
+		
+		
+		
+		
 	}
-	
-	
-
 }
