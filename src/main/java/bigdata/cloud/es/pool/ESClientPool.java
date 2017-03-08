@@ -83,7 +83,7 @@ public class ESClientPool{
 			GenericObjectPoolConfig config = new GenericObjectPoolConfig();
 			config.setMaxTotal(CloudSystemConfig.es_clientPoolSize); //最大连接数
 			config.setMaxIdle(CloudSystemConfig.es_clientPoolSize);	//链接池中最大空闲的连接数，默认为8.该参数一般尽量与_maxActive相同，以提高并发数
-			config.setMinIdle(5);	//连接池中最少空闲的连接数，默认为0
+			config.setMinIdle(1);	//连接池中最少空闲的连接数，默认为0
 			config.setMaxWaitMillis(120 * 1000);	//当连接池资源耗尽时，调用者最大阻塞的时间，超时将跑出异常。单位，毫秒数；默认为-1.表示永不超时
 			config.setSoftMinEvictableIdleTimeMillis(30 * 60 * 1000);	//连接空闲的最小时间，达到此值后空闲链接将会被移除，且保留“minIdle”个空闲连接数。默认为-1.
 			pool = new GenericObjectPool<Client>(poolFactory, config);
